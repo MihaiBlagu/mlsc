@@ -1,0 +1,7 @@
+gymnasium
+numpy
+scipy
+pygame
+pyusb
+libusb
+libusb-package

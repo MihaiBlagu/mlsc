@@ -1,16 +1,17 @@
 import numpy as np
+import os
 
-out = np.load('training-val-test-data.npz')
+out = np.load(os.path.join(os.path.dirname(__file__), 'training-val-test-data.npz'))
 th_train = out['th'] #th[0],th[1],th[2],th[3],...
 u_train = out['u'] #u[0],u[1],u[2],u[3],...
 
 # data = np.load('test-prediction-submission-file.npz')
-data = np.load('hidden-test-prediction-submission-file.npz')
+data = np.load(os.path.join(os.path.dirname(__file__), 'hidden-test-prediction-submission-file.npz'))
 upast_test = data['upast'] #N by u[k-15],u[k-14],...,u[k-1]
 thpast_test = data['thpast'] #N by y[k-15],y[k-14],...,y[k-1]
 # thpred = data['thnow'] #all zeros
 
-
+# NARX model structure
 def create_IO_data(u,y,na,nb):
     X = []
     Y = []
