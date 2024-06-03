@@ -49,20 +49,24 @@ def run():
     # print('Y_val:', Y_val.shape)
     # print('Y_test:', Y_test.shape)
 
-    ker = RBF(length_scale=1) + WhiteKernel(noise_level=1)
+    # length scale = 1 and noise level = 1 initially but remove them for hyperparameter optimization
+    # RBF(length_scale=3.83) + WhiteKernel(noise_level=1.16e-05)
+    ker = RBF() + WhiteKernel()
     reg = GaussianProcessRegressor(kernel=ker, n_restarts_optimizer=10, copy_X_train=False)
-    reg.fit(X_train[:1000], Y_train[:1000])
+    reg.fit(X_train[:3000], Y_train[:3000])
+
+    print(reg.kernel_)
 
     if not os.path.exists('./plots'):
         os.makedirs('./plots')
 
     #residual calculations and plotting
-    Y_train_pred, Y_train_pred_std = reg.predict(X_train,return_std=True) #a)
+    Y_train_pred, Y_train_pred_std = reg.predict(X_train[-1000:],return_std=True) #a)
     plt.figure(figsize=(12,5)) #a)
-    plt.plot(Y_train) #a)
+    plt.plot(Y_train[-1000:]) #a)
     plt.title('prediction on the training set')
-    Y_train_pred, Y_train_pred_std = reg.predict(X_train,return_std=True) #a)
-    plt.errorbar(np.arange(len(X_train)), (Y_train_pred), yerr=2*Y_train_pred_std,fmt='.r') #a)
+    Y_train_pred, Y_train_pred_std = reg.predict(X_train[-1000:],return_std=True) #a)
+    plt.errorbar(np.arange(len(X_train[-1000:])), (Y_train_pred), yerr=2*Y_train_pred_std,fmt='.r') #a)
     plt.grid(); plt.xlabel('sample'); plt.ylabel('y'); plt.legend(['measured','pred'])#a)
     # save plot
     plt.savefig('./plots/training_set_prediction.png')
@@ -70,38 +74,35 @@ def run():
 
     plt.figure(figsize=(12,5)) #a)
     plt.title('prediction on the validation set')
-    plt.plot(Y_val) #a)
-    Yval_pred, Yval_pred_std = reg.predict(X_val,return_std=True) #a)
-    plt.errorbar(np.arange(len(X_val)), (Yval_pred), yerr=2*Yval_pred_std,fmt='.r') #a)
+    plt.plot(Y_val[-1000:]) #a)
+    Y_val_pred, Y_val_pred_std = reg.predict(X_val[-1000:],return_std=True) #a)
+    plt.errorbar(np.arange(len(X_val[-1000:])), (Y_val_pred), yerr=2*Y_val_pred_std,fmt='.r') #a)
     plt.grid(); plt.xlabel('sample'); plt.ylabel('y'); plt.legend(['measured','pred']) #a)
 
-    NRMS = np.mean((Yval_pred-Y_val)**2)**0.5/np.std(Y_val)
+    # RMSE computation
+    RMSE = np.sqrt(np.mean((Y_val_pred - Y_val[-1000:])**2))
 
     # save plot
-    plt.savefig(f'./plots/validation_set_prediction_NRMS{NRMS}.png')
+    plt.savefig(f'./plots/validation_set_prediction_RMSE{RMSE}.png')
     plt.show() #a)
 
-    print(f'Validation NRMS= {NRMS}')#a)
-
-    # np.random.seed(43)
-    # utest = np.random.normal(scale=1.0,size=5000)
-    # ytest = use_NARX_model_in_simulation(utest,f,na,nb)
-
+    print(f'Validation RMSE= {RMSE}')
 
     model_now = reg
-    fmodel = lambda u,y: model_now.predict(np.concatenate([u,y])[None,:])[0] 
-    Y_test_sim = use_NARX_model_in_simulation(X_test, fmodel, na, nb)
+    fmodel = lambda u,y: model_now.predict(np.concatenate([u,y])[None,:])[0]
+    Y_test_sim = use_NARX_model_in_simulation(u[-(int(len(u)*test_size)):], fmodel, na, nb)
 
-    plt.plot(Y_test) #b)
-    plt.plot(Y_test-Y_test_sim) #b)
+    plt.plot(Y_test[-500:]) #b)
+    plt.plot(Y_test_sim[-500:]) #b)
     plt.grid(); plt.xlabel('index time'); plt.ylabel('y'); plt.legend(['measured','prediction']) #b)
     
-    NRMS = np.mean((Y_test-Y_test_sim)**2)**0.5/np.std(Y_test)
+    # RMSE computation
+    RMSE = np.sqrt(np.mean((Y_test_sim[-500:] - Y_test[-500:])**2))
     # save plot
-    plt.savefig(f'./plots/test_set_prediction_NRMS{NRMS}.png')
+    plt.savefig(f'./plots/test_set_prediction_NRMS{RMSE}.png')
     plt.show() #b)
 
-    print('NRMS=', NRMS) #b)
+    print('Test RMSE =', RMSE) #b)
 
 
 if __name__ == '__main__':
