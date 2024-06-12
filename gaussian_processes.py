@@ -4,6 +4,9 @@ from sklearn.gaussian_process.kernels import RBF, WhiteKernel
 import numpy as np
 import os
 from matplotlib import pyplot as plt 
+import warnings
+from scipy.interpolate import interp1d
+warnings.filterwarnings("ignore")
 
 
 def use_NARX_model_in_simulation(ulist, f, na, nb):
@@ -25,6 +28,123 @@ def use_NARX_model_in_simulation(ulist, f, na, nb):
         #save result
         ylist.append(ynow)
     return np.array(ylist) #return result
+
+
+def get_model(x,y): 
+    #return a regressor which is fitted to x,y
+    ker = RBF() + WhiteKernel() #a)
+    gp_reg = GaussianProcessRegressor(ker, n_restarts_optimizer=10) #a)
+    gp_reg.fit(x[:,None],y) #a)
+    return gp_reg #a)
+
+def get_mean_std(gp_reg, xtest_points):
+    ytest_pred_mean, ytest_pred_std = gp_reg.predict(xtest_points[:,None],return_std=True) #a)
+    ytest_std_mean = (ytest_pred_std**2 - np.exp(gp_reg.kernel_.k2.theta))**0.5
+    return ytest_pred_mean, ytest_std_mean
+    
+def acquisition_var(gp_reg, xtest_points):
+    ytest_pred_mean, ytest_pred_std = get_mean_std(gp_reg, xtest_points) #b)
+    return ytest_pred_std**2 #b)
+
+def acquisition_weighted_mean_and_std(gp_reg, xtest_points, weight=0.5):
+    ytest_pred_mean, ytest_pred_std_mean = get_mean_std(gp_reg, xtest_points) #d)    
+    return (1-weight)*ytest_pred_mean + weight*ytest_pred_std_mean #d)
+
+def bayesian_optimization(u, th, acquisition_fun, n_initial=5, n_max=15, seed=22):
+    # f : is the function which need to be sampled
+    # xmin : and xmax are the bounds on the x
+    # acquisition_fun(gp_reg, some_x_points) : is the acquisition_fun on which the maximum need to be chosen as next point
+    # n_initial : the number of points which are uniformly sampled from f before using bayesian optimizaiton
+    # n_max : the buget of the number of maximum points that can be sampled from f 
+    # (i.e. n_initial - n_max is the number of bayesian samples)
+    x = u[:n_initial] #c=)
+    y = th[:n_initial] #c=)
+    xtest_points = u[1000:] #c=)
+    for n in range(n_initial+1, n_max+1): #c)
+        gp_reg = get_model(x,y)
+        acquisition_vals = acquisition_fun(gp_reg, xtest_points) #c=)
+        xnew = xtest_points[np.argmax(acquisition_vals)] #c=)
+        ynew = th[np.where(u == xnew)][0] #c=)
+        x = np.append(x,xnew) #c=)
+        y = np.append(y,ynew) #c=)
+    return x, y, get_model(x,y)
+
+def run_bayesian_opt():
+    # Load data
+    file_path = 'disc-benchmark-files/training-val-test-data.npz'
+    u, th = load_data(file_path)
+
+    n_initial = 5
+    n_max = 15
+
+    x_rand = u[1000:1015] #random baseline
+    y_rand = th[1000:1015]
+    x_test = u[-6000:-1000]
+
+    weight = 0.8
+    #incorporate the weight factor in the function with a lambda function
+    acquisition_weighted_mean_and_std_now = lambda gp_reg, xtest_points: \
+        acquisition_weighted_mean_and_std(gp_reg, xtest_points, weight=weight)
+
+        
+    for mode,acquisition_fun in enumerate([acquisition_var,acquisition_weighted_mean_and_std_now]):
+        if acquisition_fun==None:
+            continue
+        if mode==0:
+            print('Variance Acquision')
+        else:
+            print(f'Weighted mean and Variance Acquision (weight={weight})')
+        #Bayesian
+        x, y, reg = bayesian_optimization(u, th, acquisition_fun=acquisition_fun, n_initial=n_initial, n_max=n_max, seed=21)
+
+        plt.figure(figsize=(12,4))
+        for i,(xi, yi) in enumerate([(x_rand,y_rand),(x,y)]):
+            plt.subplot(1,2,i+1)
+            plt.plot(x_test,th[-6000:-1000],label='real')
+
+            label = 'random samples' if i==0 else 'bayesian optimization'
+            plt.plot(xi,yi,'o',label=label)
+
+            reg = get_model(xi,yi)
+
+            ytest_pred_mean, ytest_pred_std_mean = get_mean_std(reg, x_test)
+            plt.plot(x_test, ytest_pred_mean,label='mean')
+            plt.fill_between(x_test, \
+                            ytest_pred_mean+1.92*ytest_pred_std_mean,\
+                            ytest_pred_mean-1.92*ytest_pred_std_mean,\
+                            alpha=0.2,label='92% std function')
+            plt.grid()
+            plt.legend()
+            plt.ylabel('y')
+            plt.xlabel('x')
+        plt.show()
+        
+        if mode==1:
+            M = x_test[np.argmax(th[-6000:-1000])]
+            x_near = np.linspace(M-0.05, M+0.05,num=300)
+            ytest_pred_mean, ytest_pred_std_mean = get_mean_std(reg, x_near)
+
+            # added
+            x_th = np.linspace(M-0.05, M+0.05, num=len(th[-6000:-1000]))
+            f = interp1d(x_th, th[-6000:-1000], kind='linear')
+            th_resampled = f(x_near)    
+            
+            plt.plot(x_near, th_resampled, label='real')
+            xlim, ylim = plt.xlim(), plt.ylim()
+            plt.plot(xi,yi,'o',label='bayesian samples')
+            plt.plot(x_near, ytest_pred_mean,label='mean')
+            plt.fill_between(x_near, \
+                            ytest_pred_mean+1.92*ytest_pred_std_mean,\
+                            ytest_pred_mean-1.92*ytest_pred_std_mean,\
+                            alpha=0.2,label='92% std function')
+            plt.xlim(xlim); plt.ylim(ylim[0],ylim[1]+0.005)
+            plt.legend()
+            plt.grid()
+            plt.ylabel('y')
+            plt.xlabel('x')
+            plt.show()
+
+
 
 
 def run():
@@ -106,4 +226,5 @@ def run():
 
 
 if __name__ == '__main__':
-    run()
+    # run()
+    run_bayesian_opt()
