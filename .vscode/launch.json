@@ -24,6 +24,28 @@
             "request": "launch",
             "program": "gaussian_processes.py",
             "console": "integratedTerminal"
-        }
+        },
+        {
+            "name": "AC - train",
+            "type": "debugpy",
+            "request": "launch",
+            "program": "train_a2c.py",
+            "console": "integratedTerminal"
+        },
+        {
+            "name": "AC - sim",
+            "type": "debugpy",
+            "request": "launch",
+            "program": "simulator_a2c.py",
+            "console": "integratedTerminal"
+        },
+
+        {
+            "name": "A2C SB3 - train",
+            "type": "debugpy",
+            "request": "launch",
+            "program": "train_a2c_sb3.py",
+            "console": "integratedTerminal"
+        },
     ]
 }

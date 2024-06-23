@@ -35,15 +35,24 @@ class UnbalancedDisk(gym.Env):
         self.umax = umax
         self.dt = dt #time step
  
+        # added step count
+        self.step_count = 0
+        self.step_weight = 0.05
 
         # change anything here (compilable with the exercise instructions)
-        self.action_space = spaces.Box(low=-umax,high=umax,shape=tuple()) #continuous
-        # self.action_space = spaces.Discrete(5) #discrete
+        # self.action_space = spaces.Box(low=-umax,high=umax,shape=tuple()) #continuous
+        self.action_space = spaces.Discrete(7) #discrete
         low = [-float('inf'),-40] 
         high = [float('inf'),40]
         self.observation_space = spaces.Box(low=np.array(low,dtype=np.float32),high=np.array(high,dtype=np.float32),shape=(2,))
 
-        self.reward_fun = lambda self: np.exp(-(self.th%(2*np.pi)-np.pi)**2/(2*(np.pi/7)**2)) #example reward function, change this!
+        # example reward function
+        # self.reward_fun = lambda self: np.exp(-(self.th%(2*np.pi)-np.pi)**2 / (2*(np.pi/14)**2))
+        # self.reward_fun = lambda self: np.exp(-(self.th%(2*np.pi)-np.pi)**2 / (2*(np.pi/7)**2)) - \
+        #     np.exp(self.step_weight * self.step_count) * self.omega**2 
+        self.reward_fun = lambda self: np.exp(-(self.th%(2*np.pi)-np.pi)**2 / (2*(np.pi/14)**2)) - \
+            (self.step_count / 2000) * self.omega**2 
+        # self.reward_fun = lambda self: -np.array([self.th, self.omega]).T @ np.array([[5, 0], [0, 0.1]]) @ np.array([self.th, self.omega]) - self.u**2
         
         self.render_mode = render_mode
         self.viewer = None
@@ -51,9 +60,12 @@ class UnbalancedDisk(gym.Env):
         self.reset()
 
     def step(self, action):
+        # added step count
+        self.step_count += 1
+
         #convert action to u
-        self.u = action #continuous
-        # self.u = [-3,-1,0,1,3][action] #discrate
+        # self.u = action #continuous
+        self.u = [-3,-1.5,-0.5,0,0.5,1.5,3][action] #discrate
         # self.u = [-3,3][action] #discrate
 
         ##### Start Do not edit ######
@@ -68,19 +80,42 @@ class UnbalancedDisk(gym.Env):
         self.th, self.omega = sol.y[:,-1]
         ##### End do not edit   #####
 
-        reward = self.reward_fun(self)
+        # reward = self.reward_fun(self)
+        reward = self.calculate_reward()
         return self.get_obs(), reward, False, False, {}
          
     def reset(self,seed=None):
         self.th = np.random.normal(loc=0,scale=0.001)
         self.omega = np.random.normal(loc=0,scale=0.001)
         self.u = 0
+
+        # added
+        self.step_count = 0
+
         return self.get_obs(), {}
 
     def get_obs(self):
         self.th_noise = self.th + np.random.normal(loc=0,scale=0.001) #do not edit
         self.omega_noise = self.omega + np.random.normal(loc=0,scale=0.001) #do not edit
         return np.array([self.th_noise, self.omega_noise])
+
+    def calculate_reward(self):
+        # x_k = np.array([(self.th + np.pi) % (2*np.pi) - np.pi, self.omega])
+        # Q = np.array([[5, 0], [0, 0.1]])
+
+        # state_cost = x_k.T @ Q @ x_k
+        # control_cost = self.u**2
+
+        # reward = - state_cost - control_cost
+
+        # theta = (self.th % (2*np.pi) - np.pi)**2 / (2*(np.pi/7)**2)
+        theta = (self.th + np.pi) % (2*np.pi) - np.pi
+        omega = self.omega
+
+        alpha, beta, gamma = 100, 0.05, 0.5
+        reward = alpha*theta**2 - beta*omega**2 - gamma*self.u**2
+
+        return reward
 
     def render(self):
         import pygame

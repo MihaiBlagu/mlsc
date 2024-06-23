@@ -9,28 +9,34 @@ from actor_critic.model import ActorCritic
 from actor_critic.utils import A2C_rollout
 from actor_critic.discretizer import Discretizer
 
+from stable_baselines3 import A2C
+from stable_baselines3.common.evaluation import evaluate_policy
+from stable_baselines3.common.vec_env import DummyVecEnv
 
-def train(gamma = 0.98, 
-    N_iterations=10, 
+
+def train(gamma = 0.99, # 0.05 
+    N_iterations=7, 
     N_rollout=20000, 
-    N_epochs=10, 
+    N_epochs=7, 
     N_evals=10, 
-    alpha_actor=0.5,
+    alpha_actor=0.3,
     alpha_entropy=0.5, #changing this will change how much entropy is weighted (decrease if Entropy=0)
     lr=0.005,
-    num_actions=6,
+    num_actions=7,
     hidden_size=40,
     curr_best=-float('inf')):
 
     # Environment setup
     env = gym_unbalanced_disk.UnbalancedDisk(dt=0.025, umax=3.) # umax is the highest voltage
     env = gym.wrappers.time_limit.TimeLimit(env,max_episode_steps=1000)
+    # env = DiscretizedActionWrapper(env, num_actions)
 
     # assert isinstance(env.action_space,gym.spaces.Discrete), 'action space requires to be discrete'
     actor_crit = ActorCritic(env, num_actions, hidden_size=hidden_size)
     optimizer = torch.optim.Adam(actor_crit.parameters(), lr=lr) #low learning rate
     # This implementation is not reccomanded for the design assignment. 
     # There might errors in this implementation and i'm not sure where.
+    # steps / 1000, pi / 14
     new_best = A2C_rollout(actor_crit, optimizer, env, alpha_actor=alpha_actor, alpha_entropy=alpha_entropy,
                 gamma=gamma, N_iterations=N_iterations, N_rollout=N_rollout, N_epochs=N_epochs, 
                 N_evals=N_evals, best_score=curr_best)
@@ -40,14 +46,14 @@ def train(gamma = 0.98,
 
 def grid_search():
     gamma_values = [0.95, 0.98, 0.99]
-    N_iterations_values = [10, 15]
-    N_rollout_values = [20000, 30000]
-    N_epochs_values = [10, 20]
+    N_iterations_values = [5, 10]
+    N_rollout_values = [15000, 20000]
+    N_epochs_values = [5, 10]
     N_evals_values = [10]
-    alpha_actor_values = [0.3, 0.5, 0.7]
-    alpha_entropy_values = [0.3, 0.5, 0.7]
-    lr_values = [0.001, 0.005, 0.01]
-    num_actions_values = [6, 11]
+    alpha_actor_values = [0.3, 0.5]
+    alpha_entropy_values = [0.5, 0.7, 0.9]
+    lr_values = [0.005]
+    num_actions_values = [5]
     hidden_size_values = [40, 60]
     
     best_score = -float('inf')
@@ -98,7 +104,11 @@ def grid_search():
     return best_score, best_params
 
 
+def eval_model(model='./models/actor'):
+    pass
+
 
 if __name__ == '__main__':
     train()
     # grid_search()
+    # train_stable_baselines()

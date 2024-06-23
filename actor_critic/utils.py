@@ -37,7 +37,7 @@ def rollout(actor_crit, env, N_rollout=10_000):
 
 
 def A2C_rollout(actor_crit, optimizer, env, alpha_actor=0.5, alpha_entropy=0.5, gamma=0.98, \
-                N_iterations=21, N_rollout=20000, N_epochs=10, batch_size=32, N_evals=10, best_score=-float('inf')):
+                N_iterations=10, N_rollout=20000, N_epochs=10, batch_size=32, N_evals=10, best_score=-float('inf')):
     curr_best = best_score
     torch.save(actor_crit.state_dict(),'./models/actor-crit-checkpoint')
     try:
@@ -63,19 +63,19 @@ def A2C_rollout(actor_crit, optimizer, env, alpha_actor=0.5, alpha_entropy=0.5, 
                     Vnext = actor_crit.critic(End_state_batch) #c=)
                     A = Rewards_batch + gamma*Vnext*(1-Terminal_batch) - Vnow #c=)
                     
-                    # action_index = np.stack((np.arange(batch_size),Actions_batch),axis=0) #to filter actions
-                    logp = actor_crit.actor(Start_state_batch,return_logp=True) #c=)
-                    logp_cur = logp[np.arange(batch_size), Actions_batch] #c=)
-                    p = torch.exp(logp) #c=) #probability for with all actions in a list
-                    # p_cur = torch.exp(logp_cur) #c=) #probability for choosing the current chosen action
+                    # # action_index = np.stack((np.arange(batch_size),Actions_batch),axis=0) #to filter actions
+                    # logp = actor_crit.actor(Start_state_batch,return_logp=True) #c=)
+                    # logp_cur = logp[np.arange(batch_size), Actions_batch] #c=)
+                    # p = torch.exp(logp) #c=) #probability for with all actions in a list
+                    # # p_cur = torch.exp(logp_cur) #c=) #probability for choosing the current chosen action
                     
                     # or
-                    # action_index = np.stack((np.arange(batch_size),Actions_batch),axis=0) # Filtering actions
-                    # logp = actor_crit.actor(Start_state_batch,return_logp=True)[action_index] 
-                    # p = torch.exp(logp) 
+                    action_index = np.stack((np.arange(batch_size),Actions_batch),axis=0) # Filtering actions
+                    logp = actor_crit.actor(Start_state_batch,return_logp=True)[action_index] 
+                    p = torch.exp(logp) 
                     
                     L_value_function = torch.mean(A**2) #c=)
-                    L_policy = -(A.detach()*logp_cur).mean() #c=) #detach A, the gradient should only to through logp
+                    L_policy = -(A.detach()*logp).mean() #c=) #detach A, the gradient should only to through logp
                     L_entropy = -torch.mean((-p*logp),0).sum() #c=) 
                     
                     Loss = L_value_function + alpha_actor*L_policy + alpha_entropy*L_entropy #c=) 
@@ -100,6 +100,8 @@ def A2C_rollout(actor_crit, optimizer, env, alpha_actor=0.5, alpha_entropy=0.5, 
             
             print('loading best result')
             actor_crit.load_state_dict(torch.load('./models/actor-crit-checkpoint'))
+    except Exception as e:
+        print(e)
     finally: #this will always run even when using the a KeyBoard Interrupt. 
         print('loading best result')
         actor_crit.load_state_dict(torch.load('./models/actor-crit-checkpoint'))

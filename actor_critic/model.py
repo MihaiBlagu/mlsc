@@ -5,7 +5,7 @@ import numpy as np
 from matplotlib import pyplot as plt
 
 class ActorCritic(nn.Module):
-    def __init__(self, env, num_actions, hidden_size=40):
+    def __init__(self, env, num_actions=6, hidden_size=40):
         super(ActorCritic, self).__init__()
         num_inputs = env.observation_space.shape[0]
         self.num_actions = num_actions
