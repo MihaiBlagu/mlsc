@@ -20,6 +20,16 @@ def select_action(actor_crit, obs):
     
     return action
 
+def select_action_continuous(actor_crit, obs):
+    # Convert observation to a tensor with batch dimension
+    obs = torch.tensor(obs[None, :], dtype=torch.float32)
+    
+    # Get the continuous action from the actor network
+    with torch.no_grad():
+        action = actor_crit.actor(obs).item()
+    
+    return action
+
 def load_model(path, env, num_actions, hidden_size):
     model = ActorCritic(env, num_actions, hidden_size)
     model.load_state_dict(torch.load(path))
@@ -33,6 +43,7 @@ def sim_custom():
     # Parameters (set according to the best found in grid search or manually specified)
     n_discrete_actions = 7
     hidden_size = 40 
+    # model_path = './models/ac_best_242001.40'
     model_path = './models/actor-crit-checkpoint'
 
     # Load the trained model
@@ -42,9 +53,9 @@ def sim_custom():
     env.render_mode = 'human'
     obs, info = env.reset()
     try:
-        for i in range(400):
+        for i in range(800):
             action = select_action(model, obs)
-            # action = np.linspace(env.action_space.low, env.action_space.high, n_discrete_actions)[action] # continuous only
+            action = np.linspace(env.action_space.low, env.action_space.high, n_discrete_actions)[action] # continuous only
             obs, reward, terminated, truncated, info = env.step(action)
             print(obs, reward)
             env.render()

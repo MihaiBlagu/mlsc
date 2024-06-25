@@ -4,6 +4,7 @@ import gymnasium as gym
 import gym_unbalanced_disk
 import itertools
 import os
+import matplotlib.pyplot as plt
 
 from actor_critic.model import ActorCritic
 from actor_critic.utils import A2C_rollout
@@ -13,48 +14,56 @@ from stable_baselines3 import A2C
 from stable_baselines3.common.evaluation import evaluate_policy
 from stable_baselines3.common.vec_env import DummyVecEnv
 
+# set seeds for everything
+seed = 42
+torch.manual_seed(seed)
+np.random.seed(seed)
 
-def train(gamma = 0.99, # 0.05 
+def train(gamma = 0.97, # 0.05 
     N_iterations=7, 
     N_rollout=20000, 
     N_epochs=7, 
     N_evals=10, 
     alpha_actor=0.3,
-    alpha_entropy=0.5, #changing this will change how much entropy is weighted (decrease if Entropy=0)
+    alpha_entropy=0.6, #changing this will change how much entropy is weighted (decrease if Entropy=0)
     lr=0.005,
-    num_actions=7,
+    num_actions=7,# 7
     hidden_size=40,
     curr_best=-float('inf')):
 
     # Environment setup
     env = gym_unbalanced_disk.UnbalancedDisk(dt=0.025, umax=3.) # umax is the highest voltage
     env = gym.wrappers.time_limit.TimeLimit(env,max_episode_steps=1000)
-    # env = DiscretizedActionWrapper(env, num_actions)
 
-    # assert isinstance(env.action_space,gym.spaces.Discrete), 'action space requires to be discrete'
     actor_crit = ActorCritic(env, num_actions, hidden_size=hidden_size)
     optimizer = torch.optim.Adam(actor_crit.parameters(), lr=lr) #low learning rate
-    # This implementation is not reccomanded for the design assignment. 
-    # There might errors in this implementation and i'm not sure where.
-    # steps / 1000, pi / 14
-    new_best = A2C_rollout(actor_crit, optimizer, env, alpha_actor=alpha_actor, alpha_entropy=alpha_entropy,
+    new_best, model, scores = A2C_rollout(actor_crit, optimizer, env, alpha_actor=alpha_actor, alpha_entropy=alpha_entropy,
                 gamma=gamma, N_iterations=N_iterations, N_rollout=N_rollout, N_epochs=N_epochs, 
                 N_evals=N_evals, best_score=curr_best)
 
-    return new_best
+    plt.figure(figsize=(10, 5))
+    plt.plot(scores)
+    plt.xlabel('Epoch')
+    plt.ylabel('Average Reward per Episode')
+    plt.title('Training Progress')
+    plt.grid(True)
+    plt.savefig(f'./plots/ac_scores_{new_best}.png')
+    plt.show()
+
+    return new_best, model
 
 
 def grid_search():
-    gamma_values = [0.95, 0.98, 0.99]
-    N_iterations_values = [5, 10]
-    N_rollout_values = [15000, 20000]
-    N_epochs_values = [5, 10]
+    gamma_values = [0.97, 0.98, 0.99]
+    N_iterations_values = [7]
+    N_rollout_values = [20000]
+    N_epochs_values = [7]
     N_evals_values = [10]
-    alpha_actor_values = [0.3, 0.5]
-    alpha_entropy_values = [0.5, 0.7, 0.9]
+    alpha_actor_values = [0.2, 0.3, 0.4]
+    alpha_entropy_values = [0.4, 0.5, 0.6]
     lr_values = [0.005]
-    num_actions_values = [5]
-    hidden_size_values = [40, 60]
+    num_actions_values = [7]
+    hidden_size_values = [40]
     
     best_score = -float('inf')
     best_params = None
@@ -62,7 +71,7 @@ def grid_search():
     # Ensure the models directory exists
     os.makedirs('./models', exist_ok=True)
     
-    with open('./models/best_params.txt', 'w') as f:
+    with open('./models/ac_best_params.txt', 'w') as f:
         f.write("Starting grid search...\n")
     
     # Generate all possible combinations of the hyperparameters
@@ -78,7 +87,7 @@ def grid_search():
               f"N_epochs={N_epochs}, N_evals={N_evals}, alpha_actor={alpha_actor}, alpha_entropy={alpha_entropy}, "
               f"lr={lr}, num_actions={num_actions}, hidden_size={hidden_size}")
 
-        score = train(
+        score, model = train(
             gamma=gamma,
             N_iterations=N_iterations,
             N_rollout=N_rollout,
@@ -100,6 +109,10 @@ def grid_search():
                 f.write(f"Parameters: gamma={gamma}, N_iterations={N_iterations}, N_rollout={N_rollout}, "
                         f"N_epochs={N_epochs}, N_evals={N_evals}, alpha_actor={alpha_actor}, alpha_entropy={alpha_entropy}, "
                         f"lr={lr}, num_actions={num_actions}, hidden_size={hidden_size}\n")
+            
+            # save model
+            model_path = f'./models/ac_best_{best_score:.2f}'
+            torch.save(model.state_dict(), model_path)
     
     return best_score, best_params
 
