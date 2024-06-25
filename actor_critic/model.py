@@ -26,6 +26,12 @@ class ActorCritic(nn.Module):
             return logp
         else:
             return torch.exp(logp) #by default it will return the probability
+
+        # # State has shape (Nbatch, Nobs)
+        # hidden = torch.tanh(self.actor_linear1(state))
+        # output = torch.tanh(self.actor_linear2(hidden))  # Output in range [-1, 1]
+        # continuous_action = output * 3  # Scale output to range [-3, 3]
+        # return continuous_action[0]
     
     def critic(self, state):
         #state has shape (Nbatch, Nobs)

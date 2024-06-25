@@ -3,7 +3,7 @@ import torch
 import numpy as np
 
 
-def rollout(actor_crit, env, N_rollout=10_000): 
+def rollout(actor_crit, env, N_rollout=10_000, discrete=False): 
     #save the following (use .append)
     Start_state = [] #hold an array of (x_t)
     Actions = [] #hold an array of (u_t)
@@ -15,7 +15,10 @@ def rollout(actor_crit, env, N_rollout=10_000):
         obs, info = env.reset() 
         for i in range(N_rollout): 
             # action = np.random.choice(env.action_space.n, p=pi(obs)) #sample action from policy
-            action = np.random.choice(actor_crit.num_actions, p=pi(obs)) #sample action from policy
+            if discrete:
+                action = np.random.choice(actor_crit.num_actions, p=pi(obs)) #sample action from policy # discrete
+            else:
+                action = pi(obs) # continuous
 
             Start_state.append(obs) 
             Actions.append(action)
@@ -40,12 +43,13 @@ def A2C_rollout(actor_crit, optimizer, env, alpha_actor=0.5, alpha_entropy=0.5, 
                 N_iterations=10, N_rollout=20000, N_epochs=10, batch_size=32, N_evals=10, best_score=-float('inf')):
     curr_best = best_score
     torch.save(actor_crit.state_dict(),'./models/actor-crit-checkpoint')
+    scores = []
     try:
         for iteration in range(N_iterations):
             print(f'rollout iteration {iteration}')
             
             #2. rollout 
-            Start_state, Actions, Rewards, End_state, Terminal = rollout(actor_crit, env, N_rollout=N_rollout)
+            Start_state, Actions, Rewards, End_state, Terminal = rollout(actor_crit, env, N_rollout=N_rollout, discrete=True)
             
             #Data conversion, no changes required
             convert = lambda x: [torch.tensor(xi,dtype=torch.float32) for xi in x]
@@ -79,14 +83,25 @@ def A2C_rollout(actor_crit, optimizer, env, alpha_actor=0.5, alpha_entropy=0.5, 
                     L_entropy = -torch.mean((-p*logp),0).sum() #c=) 
                     
                     Loss = L_value_function + alpha_actor*L_policy + alpha_entropy*L_entropy #c=) 
+
+                    # # or
+                    # voltage = actor_crit.actor(Start_state_batch,return_logp=True)
+                    
+                    # L_value_function = torch.mean(A**2) #c=)
+                    # L_policy = -(A.detach()*voltage).mean() #c=) #detach A, the gradient should only to through logp
+                    # # L_entropy = -torch.mean((-p*logp),0).sum() #c=) 
+                    
+                    # Loss = L_value_function + alpha_actor*L_policy
                     
                     optimizer.zero_grad()
                     Loss.backward()
                     optimizer.step()
                 
                 print(f'logp{p[0]} logp{logp.shape}')
+                # print(voltage)
 
                 score = np.mean([eval_actor(actor_crit, env) for i in range(N_evals)])
+                scores.append(score)
 
                 print(f'iteration={iteration} epoch={epoch} Average Reward per episode:',score)
                 print('\t Value loss:  ',L_value_function.item())
@@ -106,7 +121,7 @@ def A2C_rollout(actor_crit, optimizer, env, alpha_actor=0.5, alpha_entropy=0.5, 
         print('loading best result')
         actor_crit.load_state_dict(torch.load('./models/actor-crit-checkpoint'))
 
-        return curr_best
+        return curr_best, actor_crit, scores
 
 
 def eval_actor(actor_crit, env):
