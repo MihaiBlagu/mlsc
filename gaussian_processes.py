@@ -317,18 +317,6 @@ def test_gp(model_path='./models/best_model_test_rmse_0.002982304576111068.pkl',
 
     model = joblib.load(model_path)
 
-    # #residual calculations and plotting
-    # Y_train_pred, Y_train_pred_std = model.predict(X_train[-1000:],return_std=True) #a)
-    # plt.figure(figsize=(12,5)) #a)
-    # plt.plot(Y_train[-1000:]) #a)
-    # plt.title('prediction on the training set')
-    # Y_train_pred, Y_train_pred_std = model.predict(X_train[-1000:],return_std=True) #a)
-    # plt.errorbar(np.arange(len(X_train[-1000:])), (Y_train_pred), yerr=2*Y_train_pred_std,fmt='.r') #a)
-    # plt.grid(); plt.xlabel('sample'); plt.ylabel('y'); plt.legend(['measured','pred'])#a)
-    # # save plot
-    # plt.savefig('./plots/training_set_prediction.png')
-    # plt.show() #a)
-
     plt.figure(figsize=(12,5)) #a)
     plt.title('Prediction on the Test set')
     plt.plot(Y_test[-1000:]) #a)
@@ -342,20 +330,7 @@ def test_gp(model_path='./models/best_model_test_rmse_0.002982304576111068.pkl',
     # save plot
     plt.savefig(f'./plots/final_val_pred{RMSE}.png')
     plt.show() #a)
-    
-    # plt.figure(figsize=(12,5)) #a)
-    # plt.title('Prediction on test set')
-    # plt.plot(X_test) #a)
-    # Y_test_pred, Y_test_pred_std = model.predict(X_test,return_std=True) #a)
-    # plt.errorbar(np.arange(len(X_test)), (Y_test_pred), yerr=2*Y_test_pred_std,fmt='.r') #a)
-    # plt.grid(); plt.xlabel('sample'); plt.ylabel('y'); plt.legend(['measured','pred']) #a)
 
-    # # RMSE computation
-    # RMSE = np.sqrt(np.mean((Y_test_pred - Y_test)**2))
-    # print(f'Test Prediciton RMSE= {RMSE}')
-    # # save plot
-    # plt.savefig(f'./plots/final_test_pred{RMSE}.png')
-    # plt.show() #a)
 
     fmodel = lambda u,y: model.predict(np.concatenate([u,y])[None,:])[0]
     # Y_test_sim = use_NARX_model_in_simulation(u[-(int(len(u)*test_size)):], fmodel, na, nb)
